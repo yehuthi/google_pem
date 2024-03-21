@@ -2,3 +2,18 @@
 name = "google_pem"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+atoi = "2.0.0"
+memchr = "2.7.1"
+once_cell = "1.19.0"
+thiserror = "1.0.56"
+tokio = { version = "1.35.1", features = ["net", "io-util"] }
+tokio-rustls = "0.25.0"
+webpki-roots = "0.26.0"
+
+[dev-dependencies]
+tokio = { version = "1.35.1", features = ["macros", "rt"] }
+jsonwebtoken = { version = "9.2.0", features = ["use_pem"] }
+
+
