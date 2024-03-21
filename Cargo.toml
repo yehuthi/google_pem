@@ -15,5 +15,5 @@ webpki-roots = "0.26.0"
 [dev-dependencies]
 tokio = { version = "1.35.1", features = ["macros", "rt"] }
 jsonwebtoken = { version = "9.2.0", features = ["use_pem"] }
-
+serde = { version = "1.0.197", features = ["derive"] }
 
