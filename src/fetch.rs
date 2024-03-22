@@ -73,6 +73,16 @@ impl Instant for SystemTime {
 	}
 }
 
+impl Instant for std::time::Instant {
+	fn now() -> Self { Self::now() }
+
+	fn is_before(&self, other: &Self) -> bool { self < other }
+
+	fn add_seconds(&mut self, seconds: u64) {
+		*self = *self + std::time::Duration::from_secs(seconds);
+	}
+}
+
 #[derive(Debug, Hash, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Age<T = u64> {
 	pub age: T,
