@@ -1,17 +1,17 @@
-use std::{time::SystemTime, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 use serde::de::DeserializeOwned;
 
-pub struct Keys {
+pub struct Keys<INSTANT = std::time::SystemTime> {
 	pub keys: crate::keys::Keys,
-	pub expiration: MaybeUninit<SystemTime>,
+	pub expiration: MaybeUninit<INSTANT>,
 }
 
-impl Default for Keys {
+impl<INSTANT> Default for Keys<INSTANT> {
 	fn default() -> Self { Self::new() }
 }
 
-impl Keys {
+impl<INSTANT> Keys<INSTANT> {
 	pub const fn new() -> Self {
 		Self {
 			keys: crate::keys::Keys::new(),
@@ -19,11 +19,11 @@ impl Keys {
 		}
 	}
 
-	pub fn is_valid(&self) -> bool {
-		!self.keys.is_empty() && SystemTime::now() < unsafe { self.expiration.assume_init() }
+	pub fn is_valid(&self) -> bool where INSTANT: crate::fetch::Instant {
+		!self.keys.is_empty() && unsafe { self.expiration.assume_init_ref() }.is_expired()
 	}
 
-	pub async fn validate<Claims: DeserializeOwned>(&mut self, token: &str) -> Result<jsonwebtoken::TokenData<Claims>, Error> {
+	pub async fn validate<Claims: DeserializeOwned>(&mut self, token: &str) -> Result<jsonwebtoken::TokenData<Claims>, Error> where INSTANT: crate::fetch::Instant {
 		if !self.is_valid() {
 			self.keys.clear();
 			let (_, age) = self.keys.extend_fetch().await?;
