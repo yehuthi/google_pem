@@ -9,6 +9,8 @@ use once_cell::sync::Lazy;
 const KEYS_CAPACITY: usize = 2 + /* slack */ 2;
 
 /// Google PEM keys.
+///
+/// See [`Keys::extend_fetch`].
 pub struct Keys {
 	id: [MaybeUninit<u64>; KEYS_CAPACITY],
 	key: [MaybeUninit<DecodingKey>; KEYS_CAPACITY],

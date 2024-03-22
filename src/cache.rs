@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 /// Caching [`crate::keys::Keys`].
 pub struct Keys<INSTANT = std::time::SystemTime> {
 	pub keys: crate::keys::Keys,
-	pub expiration: MaybeUninit<INSTANT>,
+	expiration: MaybeUninit<INSTANT>,
 }
 
 impl<INSTANT> Default for Keys<INSTANT> {
