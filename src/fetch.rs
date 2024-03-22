@@ -51,6 +51,8 @@ pub enum ErrorFetch {
 }
 
 /// Instant / date-time types.
+///
+/// This is used for [`Age`] / expiration processing.
 pub trait Instant {
 	/// Gets the current instant.
 	fn now() -> Self;
@@ -75,26 +77,29 @@ impl Instant for SystemTime {
 
 impl Instant for std::time::Instant {
 	fn now() -> Self { Self::now() }
-
 	fn is_before(&self, other: &Self) -> bool { self < other }
-
 	fn add_seconds(&mut self, seconds: u64) {
 		*self = *self + std::time::Duration::from_secs(seconds);
 	}
 }
 
+/// HTTP age header information.
 #[derive(Debug, Hash, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Age<T = u64> {
+	/// The [`Age`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Age) header.
 	pub age: T,
+	/// The [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) [`max-age`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control#max-age) value.
 	pub max_age: T,
 }
 
 impl Age<u64> {
+	/// Gets the expiration time, where `time` is the response time.
 	pub fn expiration<I: Instant>(self, mut time: I) -> I {
 		time.add_seconds(self.max_age - self.age);
 		time
 	}
 
+	/// Gets the expiration time. Must be called during the time of the response.
 	pub fn expiration_now<I: Instant>(self) -> I {
 		self.expiration(I::now())
 	}
@@ -115,8 +120,7 @@ pub fn process_headers(response: &[u8]) -> Result<(Age, usize), ErrorProcess> {
 	let response = &response[skipped..];
 	let max_age = find_prefixed_number(response, b"max-age=").ok_or(ErrorProcess::MaxAge)?;
 	let age = find_prefixed_number(response, b"Age: ").unwrap_or(0);
-	let crlfcrlf = b"\r\n\r\n";
-	let body = body(response).ok_or(ErrorProcess::Body)? + crlfcrlf.len() + skipped;
+	let body = body(response).ok_or(ErrorProcess::Body)? + skipped;
 	Ok((Age { age, max_age }, body))
 }
 
@@ -143,9 +147,27 @@ mod test {
 	static SAMPLE: &[u8] = b"HTTP/1.0 200 OK\r\nServer: scaffolding on HTTPServer2\r\nX-XSS-Protection: 0\r\nX-Frame-Options: SAMEORIGIN\r\nX-Content-Type-Options: nosniff\r\nDate: Fri, 26 Jan 2024 19:49:49 GMT\r\nExpires: Sat, 27 Jan 2024 02:00:59 GMT\r\nCache-Control: public, max-age=22270, must-revalidate, no-transform\r\nContent-Type: application/json; charset=UTF-8\r\nAge: 9\r\nAlt-Svc: h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000\r\nAccept-Ranges: none\r\nVary: Origin,X-Origin,Referer,Accept-Encoding\r\n\r\n{\n  \"48a63bc4767f8550a532dc630cf7eb49ff397e7c\": \"-----BEGIN CERTIFICATE-----\\nMIIDJjCCAg6gAwIBAgIITpARon8gBycwDQYJKoZIhvcNAQEFBQAwNjE0MDIGA1UE\\nAwwrZmVkZXJhdGVkLXNpZ25vbi5zeXN0ZW0uZ3NlcnZpY2VhY2NvdW50LmNvbTAe\\nFw0yNDAxMTUwNDM4MTNaFw0yNDAxMzExNjUzMTNaMDYxNDAyBgNVBAMMK2ZlZGVy\\nYXRlZC1zaWdub24uc3lzdGVtLmdzZXJ2aWNlYWNjb3VudC5jb20wggEiMA0GCSqG\\nSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCrCvOXTp/AHo4ibrYjE0bs1c0gOaB0Gu9/\\nT2hvYaynpmYBeBTi2sc9Rit0FoCVTloelyFcJ/+ZUv5Tl3NGp5UVCxWqyPg8QgTo\\nTk4/DwTC6Y/Z/MtBKzCmQqYkkoVx2dx9DvfRAGidFQSEqQhuJh2JwmXnJOQ5F3T8\\nGZ90tX3yv6wTAQc3iXNMnXn7LD3Shv9Hq8AfjA/IJI3dd7n/NXpHgQ0vY2UqfYdP\\n2VtXseG1CieB5rzB+e2FSF1kffyQjhJLmcBoJU3EQDOW8m1Qh0KlKCNSBxtqH4PB\\njf2XgPzTSQvGRwXYIZc9KakXwY+zVpZKxi6ljyxNLL2oIUkU8XHxAgMBAAGjODA2\\nMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQMMAoGCCsG\\nAQUFBwMCMA0GCSqGSIb3DQEBBQUAA4IBAQBN1buL5aXabeBGUuQctOv5Op/yXrwx\\nsckGU0hPb1/9OBQzvJ1IXQ5XQBqyHLNI/alt1qAFp0Q/aY8G/Lf0FWlUZvRqYmJ1\\n34ZxZJBJRL2cl5cV3uke3meVcm4/MYIezJHA+VZ2ApVYWEYFU4757SwkKyXcP7vE\\nwInJwTcwNaEO7bpCD6UPGYUqX7HJ56woVDk/mq3Y7c2S7iloXODbivU+mHKNNowl\\nfp2cMnDCKAkNNFOJ9qGwv5VQ0ZLPn9P1c+0pjA9ym8Gq6AUUcDlf40PrmMi/X7iL\\nvEcijJS73YkPAMD+0X3DPsks2Y0HFZ4/zwELkbHQYgNeIwwEvT6AGvy6\\n-----END CERTIFICATE-----\\n\",\n  \"85e55107466b7e29836199c58c7581f5b923be44\": \"-----BEGIN CERTIFICATE-----\\nMIIDJzCCAg+gAwIBAgIJAIvQopve/48XMA0GCSqGSIb3DQEBBQUAMDYxNDAyBgNV\\nBAMMK2ZlZGVyYXRlZC1zaWdub24uc3lzdGVtLmdzZXJ2aWNlYWNjb3VudC5jb20w\\nHhcNMjQwMTIzMDQzODE0WhcNMjQwMjA4MTY1MzE0WjA2MTQwMgYDVQQDDCtmZWRl\\ncmF0ZWQtc2lnbm9uLnN5c3RlbS5nc2VydmljZWFjY291bnQuY29tMIIBIjANBgkq\\nhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4tVDrq5RbeDtlJ2Xh2dikE840LWflr89\\nCm3cGI9mQGlskTigV0anoViOH92Z1sqWAp5e1aRkLlCm+KAWc69uvOW/X70jEhzD\\nJVREeB3h+RAnzxYrbUgDEgltiUaM8Zxtt8hiVh/GDAudRmSP9kDxXL5xnJETF1gn\\nwAHa0j7cM4STLKbtwKi73CEmTjTLqGAES8XVnXp8VWGb6IuQzdmBIJkfcFog4Inq\\n93F4Cj/SXsSjECG3j56VxgwnloPCHTXVn/xS1s3OjoBCOvOVSJfg2nSTWNi93JGR\\n9pWZevh7Sq8Clw8H2lvIAPV/HYdxvsucWg8sJuTa6ZZSxT1WmBkW6QIDAQABozgw\\nNjAMBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQEAwIHgDAWBgNVHSUBAf8EDDAKBggr\\nBgEFBQcDAjANBgkqhkiG9w0BAQUFAAOCAQEApInd0KdnkC03WXCAchOuIk9hCvoO\\nWKTlv0wapUx4I8F8qQBDkbDpRXhF4mxMwwemcIAtRWMf12wso9cukjnMw1xeo2ec\\nIaJFqHQGHsSXiU9XcIUhcS/X9tqXCVgY6FZUw9R/7k3fWw+se+R3sKKOKPUAt9sz\\n2AQ9F67emxiyVCgCD0nzx0sj0vy/Yr3GS9K4Y9UGMi2Vur8E2v/ZDko6VqcBFwIz\\ne1Vhwr5G8T6OsWf1xeEV+FpsUy2e14JhmsrNWYYMQgyxgBxH2LmNqyvudX7IVTsR\\n1Cep5Xa7BJbADYSEFiArwnlQ9p0QMNrzhPg7W8IoMMpDaSpQeQ1nYX2ecQ==\\n-----END CERTIFICATE-----\\n\"\n}\n";
 
 	#[test]
+	fn test_body() {
+		let body = body(SAMPLE).unwrap();
+		const EXPECTED_START: &[u8] = b"{\n  \"48a63bc4767f85";
+		if !SAMPLE[body..].starts_with(EXPECTED_START) {
+			panic!("body expected to start with \"{}\" but started with \"{}\"",
+				EXPECTED_START.escape_ascii(),
+				SAMPLE[body..body + EXPECTED_START.len()].escape_ascii(),
+			);
+		}
+	}
+
+	#[test]
 	fn test_process_headers() {
 		let (age, body) = process_headers(SAMPLE).unwrap();
 		assert_eq!(age, Age { age: 9, max_age: 22270 });
-		assert!(&SAMPLE[body..].starts_with(b"{\n  \"48a63bc4767f85"))
+		const EXPECTED_START: &[u8] = b"{\n  \"48a63bc4767f85";
+		if !SAMPLE[body..].starts_with(EXPECTED_START) {
+			panic!("body expected to start with \"{}\" but started with \"{}\"",
+				EXPECTED_START.escape_ascii(),
+				SAMPLE[body..body + EXPECTED_START.len()].escape_ascii(),
+			);
+		}
 	}
 }
