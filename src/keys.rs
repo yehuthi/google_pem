@@ -44,11 +44,23 @@ impl Keys {
 		Ok(true)
 	}
 
-	pub fn try_extend<'i>(&mut self, iter: impl IntoIterator<Item = (&'i [u8], &'i [u8])>) -> Result<bool, jsonwebtoken::errors::Error> {
+	pub fn extend_try<'i>(&mut self, iter: impl IntoIterator<Item = (&'i [u8], &'i [u8])>) -> Result<bool, jsonwebtoken::errors::Error> {
 		for (id, key) in iter {
 			if !self.push(id, key)? { return Ok(false) }
 		}
 		Ok(true)
+	}
+
+	pub async fn extend_fetch_into(&mut self, buffer: &mut [u8]) -> Result<(bool, crate::fetch::Age), FetchExtendError> {
+		let len = crate::fetch::into(buffer).await?;
+		let (age, body) = crate::fetch::process_headers(&buffer)?;
+		let all_fit = self.extend_try(crate::parse(&mut buffer[body..len]))?;
+		Ok((all_fit, age))
+	}
+
+	pub async fn extend_fetch(&mut self) -> Result<(bool, crate::fetch::Age), FetchExtendError> {
+		let mut buffer = [0u8; 5 << 10];
+		self.extend_fetch_into(&mut buffer).await
 	}
 
 	pub fn iter(&self) -> impl Iterator<Item = (u64, &DecodingKey)> {
@@ -88,6 +100,16 @@ pub enum ValidateError {
 	DecodeToken(jsonwebtoken::errors::Error),
 	#[error("token needs an unknown key ID")]
 	UnknownKey,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FetchExtendError {
+	#[error("fetch error: {0}")]
+	Fetch(#[from] crate::fetch::ErrorFetch),
+	#[error("HTTP process error: {0}")]
+	HttpProcess(#[from] crate::fetch::ErrorProcess),
+	#[error("JWT error: {0}")]
+	Jwt(#[from] jsonwebtoken::errors::Error),
 }
 
 fn hash(a: &[u8]) -> u64 {
