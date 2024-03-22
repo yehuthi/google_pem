@@ -1,5 +1,13 @@
+//! PEM endpoint parsing.
+
 use std::marker::PhantomData;
 
+/// A parsing iterator for the PEM endpoint.
+///
+/// It parses the HTTP body of the PEM endpoint, and yields tuples of key ID and key.
+///
+/// Note: this iterator modifies its source in-place (to turn JSON "\n" sequence into actual
+/// newline characters).
 pub struct Parse<'a> {
 	ptr: *mut u8,
 	len: usize,
@@ -7,7 +15,8 @@ pub struct Parse<'a> {
 }
 
 impl<'a> Parse<'a> {
-	pub fn new(data: &'a mut [u8]) -> Self {
+	/// Creates a new [`Parse`]r.
+	#[inline] pub fn new(data: &'a mut [u8]) -> Self {
 		Self {
 			ptr: data.as_mut_ptr(),
 			len: data.len(),
@@ -16,7 +25,7 @@ impl<'a> Parse<'a> {
 	}
 }
 
-impl<'a> From<&'a mut [u8]> for Parse<'a> { fn from(data: &'a mut [u8]) -> Self { Self::new(data) } }
+impl<'a> From<&'a mut [u8]> for Parse<'a> { #[inline] fn from(data: &'a mut [u8]) -> Self { Self::new(data) } }
 
 impl<'a> Iterator for Parse<'a> {
 	type Item = (&'a [u8], &'a [u8]);
@@ -47,32 +56,10 @@ impl<'a> Iterator for Parse<'a> {
 	}
 }
 
-/*
-impl<'a> Parse<'a> {
-	pub const fn new(data: &'a [u8]) -> Self { Self(data) }
-}
-impl<'a> From<&'a [u8]> for Parse<'a> { fn from(data: &'a [u8]) -> Self { Self::new(data) } }
-impl<'a> From<&'a str> for Parse<'a> { fn from(data: &'a str) -> Self { Self::from(data.as_bytes()) } }
-
-impl<'a> Parse<'a> { fn eof<T>(&mut self) -> Option<T> { self.0 = &[]; None } }
-impl<'a> Iterator for Parse<'a> {
-	type Item = (&'a [u8], &'a [u8]);
-
-	fn next(&mut self) -> Option<Self::Item> {
-		let mut seps = self.0.iter().enumerate().filter(|(_,&c)| c == b'\"').map(|(i,_)|i);
-		let Some(s1) = seps.next() else { return self.eof() };
-		let Some(s2) = seps.next() else { return self.eof() };
-		let Some(s3) = seps.next() else { return self.eof() };
-		let Some(s4) = seps.next() else { return self.eof() };
-		let id = &self.0[s1+1..s2];
-		let key = &self.0[s3+1..s4];
-		self.0 = &self.0[s4+1..];
-		Some((id, key))
-	}
-}
-*/
-
-pub fn unescape(s: &mut [u8]) -> &mut [u8] {
+/// Changes "\\n" into "\n".
+///
+/// Returns the resulting (typically shorter) slice.
+fn unescape(s: &mut [u8]) -> &mut [u8] {
 	let mut n = 0;
 	for i in 0..s.len() {
 		if s[i] == b'\\' && (i + 1) < s.len() && s[i + 1] == b'n' {

@@ -1,5 +1,6 @@
 pub mod fetch;
-pub mod parse;
+mod parse;
+pub use parse::Parse;
 pub mod keys;
 pub mod cache;
 
