@@ -1,4 +1,4 @@
-//! [`fetch::into`](into)
+//! [`fetch::into`](into) and HTTP processing.
 
 use std::{sync::Arc, time::SystemTime};
 

@@ -1,3 +1,5 @@
+//! Google PEM [`Keys`].
+
 use std::{mem::MaybeUninit, hash::{DefaultHasher, Hasher}, fmt::Debug};
 use std::hash::Hash;
 
@@ -6,6 +8,7 @@ use once_cell::sync::Lazy;
 
 const KEYS_CAPACITY: usize = 2 + /* slack */ 2;
 
+/// Google PEM keys.
 pub struct Keys {
 	id: [MaybeUninit<u64>; KEYS_CAPACITY],
 	key: [MaybeUninit<DecodingKey>; KEYS_CAPACITY],
@@ -15,6 +18,7 @@ pub struct Keys {
 impl Default for Keys { fn default() -> Self { Self::new() } }
 
 impl Keys {
+	/// New empty set of keys.
 	pub const fn new() -> Self {
 		Self {
 			id: unsafe { MaybeUninit::<[MaybeUninit<u64>; KEYS_CAPACITY]>::uninit().assume_init() },
@@ -23,11 +27,18 @@ impl Keys {
 		}
 	}
 
+	/// Gets the count of keys.
 	pub const fn len(&self) -> usize { self.len as usize }
+	/// Gets whether there are no keys.
 	pub const fn is_empty(&self) -> bool { self.len == 0 }
+	/// Clears all the keys.
 	pub fn clear(&mut self) { self.len = 0; }
 
-	pub unsafe fn push_unchecked(&mut self, id: &[u8], key: &[u8]) -> Result<(), jsonwebtoken::errors::Error> {
+	/// Pushes a key.
+	///
+	/// # Safety
+	/// Ensure [`self.len()`](Self::len()) < `KEYS_CAPACITY`.
+	unsafe fn push_unchecked(&mut self, id: &[u8], key: &[u8]) -> Result<(), jsonwebtoken::errors::Error> {
 		debug_assert!(self.len() < KEYS_CAPACITY);
 		let id_hash = hash(id);
 		let key = DecodingKey::from_rsa_pem(key)?;
@@ -38,12 +49,19 @@ impl Keys {
 		Ok(())
 	}
 
+	/// Pushes a key.
+	///
+	/// Returns whether there was space for it.
+	/// Fails if failed to parse the key.
 	pub fn push(&mut self, id: &[u8], key: &[u8]) -> Result<bool, jsonwebtoken::errors::Error> {
 		if self.len() >= KEYS_CAPACITY { return Ok(false); }
 		unsafe { self.push_unchecked(id, key)?; }
 		Ok(true)
 	}
 
+	/// Extends from an iterator of keys.
+	///
+	/// Returns whether there was room for all keys.
 	pub fn extend_try<'i>(&mut self, iter: impl IntoIterator<Item = (&'i [u8], &'i [u8])>) -> Result<bool, jsonwebtoken::errors::Error> {
 		for (id, key) in iter {
 			if !self.push(id, key)? { return Ok(false) }
@@ -51,6 +69,7 @@ impl Keys {
 		Ok(true)
 	}
 
+	/// [fetches](crate::fetch::into) keys and [extends](Self::extend_try) this set with them, using the given buffer.
 	pub async fn extend_fetch_into(&mut self, buffer: &mut [u8]) -> Result<(bool, crate::fetch::Age), FetchExtendError> {
 		let len = crate::fetch::into(buffer).await?;
 		let (age, body) = crate::fetch::process_headers(&buffer)?;
@@ -58,11 +77,13 @@ impl Keys {
 		Ok((all_fit, age))
 	}
 
+	/// [fetches](crate::fetch::into) keys and [extends](Self::extend_try) this set with them.
 	pub async fn extend_fetch(&mut self) -> Result<(bool, crate::fetch::Age), FetchExtendError> {
 		let mut buffer = [0u8; 5 << 10];
 		self.extend_fetch_into(&mut buffer).await
 	}
 
+	/// Iterates over the keys.
 	pub fn iter(&self) -> impl Iterator<Item = (u64, &DecodingKey)> {
 		self.id.iter()
 			.zip(self.key.iter())
@@ -70,6 +91,7 @@ impl Keys {
 			.map(|(id, key)| unsafe { (id.assume_init(), key.assume_init_ref()) })
 	}
 
+	/// Gets a key by its ID.
 	pub fn get(&self, id: &[u8]) -> Option<&DecodingKey> {
 		let id = hash(id);
 		self.iter()
@@ -77,6 +99,7 @@ impl Keys {
 			.map(|(_, key)| key)
 	}
 
+	/// Validates a token.
 	pub fn validate<Claims: serde::de::DeserializeOwned>(&self, token: &str) -> Result<jsonwebtoken::TokenData<Claims>, ValidateError> {
 		let kid = jsonwebtoken::decode_header(token).map_err(ValidateError::DecodeHeader)?.kid.ok_or(ValidateError::TokenMissingKeyId)?;
 		let key = self.get(kid.as_bytes()).ok_or(ValidateError::UnknownKey)?;
@@ -90,6 +113,7 @@ impl Keys {
 	}
 }
 
+/// [`Keys::validate`] error.
 #[derive(Debug, thiserror::Error)]
 pub enum ValidateError {
 	#[error("failed to decode the token header: {0}")]
@@ -102,6 +126,7 @@ pub enum ValidateError {
 	UnknownKey,
 }
 
+/// [`Keys::extend_fetch`] / [`Keys::extend_fetch_into`] error.
 #[derive(Debug, thiserror::Error)]
 pub enum FetchExtendError {
 	#[error("fetch error: {0}")]
