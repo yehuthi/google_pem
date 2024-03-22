@@ -1,7 +1,10 @@
+//! Caching [`Keys`].
+
 use std::mem::MaybeUninit;
 
 use serde::de::DeserializeOwned;
 
+/// Caching [`crate::keys::Keys`].
 pub struct Keys<INSTANT = std::time::SystemTime> {
 	pub keys: crate::keys::Keys,
 	pub expiration: MaybeUninit<INSTANT>,
@@ -12,6 +15,7 @@ impl<INSTANT> Default for Keys<INSTANT> {
 }
 
 impl<INSTANT> Keys<INSTANT> {
+	/// New empty set of keys.
 	pub const fn new() -> Self {
 		Self {
 			keys: crate::keys::Keys::new(),
@@ -19,10 +23,12 @@ impl<INSTANT> Keys<INSTANT> {
 		}
 	}
 
+	/// Checks if the cache is valid.
 	pub fn is_valid(&self) -> bool where INSTANT: crate::fetch::Instant {
 		!self.keys.is_empty() && unsafe { self.expiration.assume_init_ref() }.is_expired()
 	}
 
+	/// Validates a token.
 	pub async fn validate<Claims: DeserializeOwned>(&mut self, token: &str) -> Result<jsonwebtoken::TokenData<Claims>, Error> where INSTANT: crate::fetch::Instant {
 		if !self.is_valid() {
 			self.keys.clear();
@@ -33,6 +39,7 @@ impl<INSTANT> Keys<INSTANT> {
 	}
 }
 
+/// [`Keys::validate`] error.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
 	#[error("failed to fetch keys: {0}")]
