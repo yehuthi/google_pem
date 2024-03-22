@@ -11,9 +11,9 @@ thiserror = "1.0.56"
 tokio = { version = "1.35.1", features = ["net", "io-util"] }
 tokio-rustls = "0.25.0"
 webpki-roots = "0.26.0"
+jsonwebtoken = { version = "9.2.0", features = ["use_pem"] }
+serde = "1.0.197"
 
 [dev-dependencies]
 tokio = { version = "1.35.1", features = ["macros", "rt"] }
-jsonwebtoken = { version = "9.2.0", features = ["use_pem"] }
 serde = { version = "1.0.197", features = ["derive"] }
-
