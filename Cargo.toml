@@ -1,6 +1,11 @@
 [package]
 name = "google_pem"
 version = "0.1.0"
+authors = ["Yehuthi <yehuthith@gmail.com>"]
+repository = "https://github.com/yehuthi/google_pem"
+license = "MIT OR Apache-2.0"
+keywords = ["google", "auth", "web", "sign", "account"]
+categories = ["authentication", "api-bindings"]
 edition = "2021"
 
 [dependencies]
