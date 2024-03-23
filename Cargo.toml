@@ -1,6 +1,7 @@
 [package]
 name = "google_pem"
 version = "0.1.0"
+description = "Google token validation"
 authors = ["Yehuthi <yehuthith@gmail.com>"]
 repository = "https://github.com/yehuthi/google_pem"
 license = "MIT OR Apache-2.0"
